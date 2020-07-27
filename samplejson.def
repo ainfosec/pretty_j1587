@@ -1,0 +1,58 @@
+{ 
+  "mids":
+  {
+    "131": "Custom mid definition for one three one"
+  },
+  "pids":
+  {
+    "84": "A redefined eighty-four (to the moon)",
+    "192": "A redefined one ninety-two (to somewhere)",
+    "211": "testing special PID"
+  },
+  "pid_fields":
+  { 
+    "211":{
+      "ByteDef": { "a": "Num bytes", "b": "byte val"},
+      "Sequence": "ab",
+            "DataType": "Junk",
+            "MaximumRange": "Junk",
+            "MessagePriority": "2",
+            "ParameterDataLength": "var",
+            "Resolution": "junk",
+            "Summary": "Summary",
+            "TransmissionUpdatePeriod": "1.3 m"
+    },
+    "84": 
+        {
+            "ByteDef": {
+                "a": "velocity toward the moon"
+            },
+            "DataType": "Unsigned Short Integer",
+            "MaximumRange": "0.0 to 205.2 km/h (0.0 to 127.5 mph)",
+            "MessagePriority": "4",
+            "ParameterDataLength": "1 Character",
+            "Resolution": "0.305 km/h (0.5 mph)",
+            "Sequence": "a",
+            "Summary": "The velocity of the vehicle approaching the moon, from the perspective of one standing on the moon",
+            "TransmissionUpdatePeriod": "0.3 s"
+        },
+    "192": 
+        {
+            "ByteDef": {
+                "a": "velocity toward the moon",
+                "b": "velocity toward the sun",
+                "c": "velocity toward Jupiter",
+                "d": "velocity toward the Earth",
+                "e": "velocity toward the outerverse"
+            },
+            "DataType": "Unsigned Short Integer",
+            "MaximumRange": "0.0 to 205.2 km/h (0.0 to 127.5 mph)",
+            "MessagePriority": "4",
+            "ParameterDataLength": "Variable",
+            "Resolution": "0.305 km/h (0.5 mph)",
+            "Sequence": "a,b,c,d/e,c/d,a/d,b/d",
+            "Summary": "The velocity of the vehicle approaching somewhere",
+            "TransmissionUpdatePeriod": "0.3 s"
+        }
+  }
+}
