@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python2.7
 
 import struct_from_J1587 as j1587
 import itertools as it
@@ -539,10 +539,7 @@ def parse_message(line):
     l.warn("Invalid message: %s" % line)
     return
 
-  if canon_function:
-    msg = canon_function(line)
-  else:
-    msg = [int(x,16) for x in line.strip().split(",")]
+  msg = canon_function(line)
 
   if pregular: 
     print_message += "MSG: [%s]\n" % ",".join(hex(x) for x in msg)
@@ -615,6 +612,7 @@ def parse_message(line):
     messages_parsed_count += 1
     print("\n-----------------%d-----------------\n" % messages_parsed_count)
 
+  sys.stdout.flush()
 
 def tcp_read(port):
   """ Get messages from TCP socket 
@@ -703,12 +701,12 @@ if __name__ == "__main__":
   # Print regular output?
   pregular = args.d
 
+  import canon_functions
   # Are we trying to canonicalize?
   if args.canon: 
-    import canon_functions
     canon_function = getattr(canon_functions,args.canon)
   else: 
-    canon_function = None
+    canon_function = getattr(canon_functions,'canon_besteffort')
 
   # Are we printing JSON
   do_json = args.do_json 
@@ -722,8 +720,11 @@ if __name__ == "__main__":
   # Iterate through the provided files
   if args.filenames:
     for filename in args.filenames:
-      if filename == "-": 
-        for msg in sys.stdin.readlines():
+      if filename == "-":
+        while True:
+          msg = sys.stdin.readline()
+          if not msg:
+            break
           parse_message(msg)
       elif os.path.exists(filename):
         for msg in open(filename,"r").readlines():
