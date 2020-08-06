@@ -539,10 +539,7 @@ def parse_message(line):
     l.warn("Invalid message: %s" % line)
     return
 
-  if canon_function:
-    msg = canon_function(line)
-  else:
-    msg = [int(x,16) for x in line.strip().split(",")]
+  msg = canon_function(line)
 
   if pregular: 
     print_message += "MSG: [%s]\n" % ",".join(hex(x) for x in msg)
@@ -703,12 +700,12 @@ if __name__ == "__main__":
   # Print regular output?
   pregular = args.d
 
+  import canon_functions
   # Are we trying to canonicalize?
   if args.canon: 
-    import canon_functions
     canon_function = getattr(canon_functions,args.canon)
   else: 
-    canon_function = None
+    canon_function = getattr(canon_functions,'canon_besteffort')
 
   # Are we printing JSON
   do_json = args.do_json 

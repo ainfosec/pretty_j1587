@@ -30,3 +30,19 @@ def canon_nodelims(msg):
   """
   msg = msg.strip()
   return [int(msg[i:i+2],16) for i in range(0,len(msg),2)]
+
+def canon_besteffort(msg):
+  """
+    Format is any:
+      2a00f6
+      2a#00f6
+      2a,00,f6
+      (123.123) interface 2a#00f6 ; comment (case insensitive)
+  """
+  msg = msg.strip()
+  msg = msg.split(';')[0]
+  msg = msg.split(' ')[-1]
+  msg = msg.replace(',', '')
+  msg = msg.replace('#', '')
+  return [int(msg[i:i+2],16) for i in range(0,len(msg),2)]
+
