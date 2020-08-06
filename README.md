@@ -1,10 +1,16 @@
 # `pretty_1587`
-This is a tool for getting details about J1587/J1708 messages.
 
-Input is some sort of delimited list of bytes that may be reformatted to fit the form
-` XX[,..] `
+This is a tool for getting detailed decodings of J1587/J1708 (and J2497) messages using the J1587 and J1708 specification PDFs as a reference.
+
+Input is some sort of delimited list of bytes that may be reformatted to fit the form ` XX[,..] `. See the `-j CANON` options for the various file formats supported. By default, `pretty_j1587` will read input with a sequence of hex bytes, ignoring delimiters, timestamps, interface names and comments. For example, all of the following are valid by default:
+
+* `0a,00` (the output of the `j1708_logger.py` script for https://github.com/TruckHacking/py-hv-networks)
+* `(123123123.123123) j1708 0a00 ; ABS lamp` (the output of the `j1708dump.py` command of https://github.com/TruckHacking/plc4trucksduck)
+
 Output is a printout of details about the message.
-It can now read from stdin as well as sockets or files. 
+
+Input can be from stdin, sockets or files. 
+
 
 ## Usage
 ```
@@ -43,6 +49,8 @@ optional arguments:
 ```
 The more verbosity, the more detail is printed about a given message.
 For example
+
+
 ### No verbosity
 ```
 MSG: [0x89,0xf5,0x4,0xe1,0x0,0x0,0x0]
@@ -50,6 +58,8 @@ MID 0x89 (137):  Brakes, Trailer #1
 PID 0xf5 (245): Total Vehicle Distance
   DATA: 0x4, 0xe1, 0x0, 0x0, 0x0
 ```
+
+
 ### Verbosity == 1
 ```
 MSG: [0x89,0xf5,0x4,0xe1,0x0,0x0,0x0]
@@ -68,6 +78,8 @@ PID 0xf5 (245): Total Vehicle Distance
     0x00 - Total vehicle distance
     0x00 - Total vehicle distance
 ```
+
+
 ### Verbosity == 2
 ```
 MSG: [0x89,0xf5,0x4,0xe1,0x0,0x0,0x0]
@@ -89,24 +101,31 @@ PID 0xf5 (245): Total Vehicle Distance
     0x00 - Total vehicle distance
 ```
 
+
 ## Requirements 
 
 Requires the latest J1587 and J1708 specifications, which are converted to text 
 with pdftotext (using -layout option). Filenames are set in the struct_from_J1587.py file which is used by pretty_j1587.py.
 
+
 ## Examples
 
 ### Parse from stdin
+
 ```bash
 echo "<packet>" | ./pretty_j1587.py  -f -
 ```
 
+
 ### Print output as formatted JSON from file path, disabling default output format
+
 ```bash
 ./pretty_j1587.py -f <filepath> --json --format -d
 ```
 
+
 ### Enable logging info and above messages, and use a user defined function to reformat input
+
 ```bash
 echo "<nexiq_log_packet>" | ./pretty_j1587.py -l info -j canon_nexiq -f -
 ```
@@ -120,7 +139,9 @@ echo -e "139,99,22" | ./pretty_j1587.py -f - -v2 -j canon_decimal
 ```
 This will work as previous examples, but takes decimal numbers as input.
 
+
 ### A custom database file is used to give/change values for certain PIDs
+
 ```bash
 ./pretty_j1587.py -f nexiq_j1587.log -c samplejson.def -j canon_nexiq
 ```
@@ -197,21 +218,27 @@ The sequence pointed to in the custom database file *should* be able to handle a
 
 There may be issues when overriding certain *special* PIDs. For instance, setting up the structure for PID 211 will result in an override of everything as desired, except for the explanation of the data bytes. This may also affect other PIDs within the same message. For most scenarios, these PIDs do not need to be overridden, but there is a TODO item for a remedy at some point.
 
+
 ## Installation
-Run
+
+There are no python dependencies for `pretty_j1587.py`; you will, however, need copies of the J1587 and J1708 specification PDFs and they need to be converted to .txt files using `pdftotext -layout`
+
 ```bash
 pdftotext -layout J1587_201301.pdf <1587outputfilename>
 pdftotext -layout J1708_201609.pdf <1708outputfilename>
 ```
+
 Now inside the configuration file "config.cfg", modify the file paths to point to 
 the output files from above.
 
+
 ## Testing
+
 To be sure at least minimal functionality is provided, run the test file
 ```bash
 python test_pretty_j1587.py
 ```
-Also, inncluded is a script to write random packets to stdout, UDP port 4545, or TCP port 4545.
+Also, included is a script to write random packets to stdout, UDP port 4545, or TCP port 4545.
 This can be used to test the functionality of pretty_j1587.py.
 ```bash
 # Terminal 1 - sets up listener
@@ -221,7 +248,9 @@ This can be used to test the functionality of pretty_j1587.py.
 ```
 This will write packets to TCP port 4545. For UDP, the argument should be "U". For stdout, run without arguments.
 
+
 ## General TODO:
+
  - Test different versions of pdftotext (Only 3.03 so far!)
  - Add more test cases 
  - Probably want to migrate to python3 at some point
@@ -231,5 +260,7 @@ This will write packets to TCP port 4545. For UDP, the argument should be "U". F
  - Maybe try to optimize by not certain work when commandline options are not given
  - Add blacklist option
 
+
 ## Structure related TODO:
- Look in "struct_from_J1587.py"
+
+Look in "struct_from_J1587.py"
