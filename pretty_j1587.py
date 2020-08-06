@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python2.7
 
 import struct_from_J1587 as j1587
 import itertools as it
