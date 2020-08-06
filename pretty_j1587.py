@@ -719,8 +719,11 @@ if __name__ == "__main__":
   # Iterate through the provided files
   if args.filenames:
     for filename in args.filenames:
-      if filename == "-": 
-        for msg in sys.stdin.readlines():
+      if filename == "-":
+        while True:
+          msg = sys.stdin.readline()
+          if not msg:
+            break
           parse_message(msg)
       elif os.path.exists(filename):
         for msg in open(filename,"r").readlines():
