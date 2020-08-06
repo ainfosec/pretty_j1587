@@ -612,6 +612,7 @@ def parse_message(line):
     messages_parsed_count += 1
     print("\n-----------------%d-----------------\n" % messages_parsed_count)
 
+  sys.stdout.flush()
 
 def tcp_read(port):
   """ Get messages from TCP socket 
