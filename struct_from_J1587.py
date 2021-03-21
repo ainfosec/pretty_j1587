@@ -22,7 +22,11 @@
 import re,os,pickle,itertools,json
 import pprint as pp, logging as lg
 import ConfigParser
+import os
 
+orig_work_dir = os.getcwd()
+script_dir = os.path.dirname(__file__)
+os.chdir(script_dir)
 config = ConfigParser.ConfigParser()
 config.read("config.cfg")
 
@@ -37,6 +41,7 @@ linesl = fhl.readlines()
 # 1708 lines with layout
 fh1708l = open(filepath_layout_1708,"r")
 lines1708 = fh1708l.readlines()
+os.chdir(orig_work_dir)
 
 def get_mids(linesl):
   """ Return dictionary of mid:meaning """
