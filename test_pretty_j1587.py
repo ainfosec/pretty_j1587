@@ -79,8 +79,8 @@ class J1587TestClass(ut.TestCase):
     self.assertTrue("CLC_CHECKSUM" in jmsg)
     self.assertTrue(jmsg["CLC_CHECKSUM"] == 20)
   def test_special_pid_var_len(self):
-    msg="87,d3,2,c2,c1,d3,1,c2,c0,bf,cf,df"
-    with captured_output() as (sout,serr): 
+    msg="87,d3,02,c2,c1,d3,01,c2,c0,bf,cf,df"
+    with captured_output() as (sout,serr):
       parser.parse_message(msg)
     self.assertTrue(sout.getvalue().strip().count("PID 0xd3") == 2)
   def test_J1708(self):
