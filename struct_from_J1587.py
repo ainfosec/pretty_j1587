@@ -14,26 +14,25 @@
 #   5) Handle bytes/bits definitions using the sequence
 #        There is a lot of variation among the format definitions, for instance PID 206
 #        this makes it very difficult to find a general solution for using the parsed content
-#   6) Take out locations where I used hard-coded line numbers due to time 
+#   6) Take out locations where I used hard-coded line numbers due to time
 #   7) PID 79 missing, may also want to check all PIDs and see what others
 #
 ######################################################################
 
 import re,os,pickle,itertools,json
 import pprint as pp, logging as lg
-import ConfigParser
-import os
+import configparser
 
 orig_work_dir = os.getcwd()
 script_dir = os.path.dirname(__file__)
 os.chdir(script_dir)
-config = ConfigParser.ConfigParser()
+config = configparser.ConfigParser()
 config.read("config.cfg")
 
 # This file should be the output of : pdftotext -layout J1587_201301.pdf <filename>
-filepath_layout_1587 = config.get("Filepaths","1587_filepath",0)
+filepath_layout_1587 = config.get("Filepaths", "1587_filepath", raw=False)
 # This file should be the output of : pdftotext -layout J1708_201609.pdf <filename>
-filepath_layout_1708 = config.get("Filepaths","1708_filepath",0)
+filepath_layout_1708 = config.get("Filepaths", "1708_filepath", raw=False)
 
 # Lines with layout
 fhl = open(filepath_layout_1587,"r")
@@ -49,18 +48,18 @@ def get_mids(linesl):
   mids = {}
 
   for line in linesl:
-    
+
     # Before table
     if not foundstartmids and "MID #" in line:
-      foundstartmids = True  
+      foundstartmids = True
 
     # MID table found
     elif foundstartmids:
-      if re.match(' *[0-9]+',line.strip()): 
+      if re.match(' *[0-9]+',line.strip()):
         s = re.split(' {3,}',line)
         # We only grab the Basic Heavy Duty Column
         #  otherwise s[3] for Mass Transit Specific, s[4] for Marine Specific
-        mids[s[1]] = s[2] 
+        mids[s[1]] = s[2]
 
     # After table
     if "NOTE: Designers" in line:
@@ -69,8 +68,8 @@ def get_mids(linesl):
   return mids
 
 def get_pids(linesl):
-  """ 
-  Required layout lines.  
+  """
+  Required layout lines.
   Returns dictionary of pid:meaning
   """
   pids = {}
@@ -85,10 +84,10 @@ def get_pids(linesl):
     if not foundstartpids and "  TABLE 2 - PARAMETER IDENTIFICATION" in line:
       foundstartpids = True
 
-    elif foundstartpids: 
-      if re.match(' +[0-9]+[^\.]',line): 
+    elif foundstartpids:
+      if re.match(' +[0-9]+[^\.]',line):
         garbage,pid,meaning = re.split(" {9,}",line)
-        pids[pid.strip()] = meaning.strip() 
+        pids[pid.strip()] = meaning.strip()
 
   return pids
 
@@ -111,7 +110,7 @@ def get_fmis(linesl):
 def get_diagnostic_sids():
   return {str(150+x):"System Diagnostic Code #"+str(x) for x in range(1,6)}
 
-def get_common_sids(linesl): 
+def get_common_sids(linesl):
   """ Use the formatted lines. Return dictionary of common_sid:meaning """
 
   foundstartcsids = False
@@ -126,9 +125,9 @@ def get_common_sids(linesl):
       foundstartcsids = True
 
     elif foundstartcsids:
-      if re.match(' +[0-9]+[^\.]',line): 
+      if re.match(' +[0-9]+[^\.]',line):
         garbage,sid,meaning = re.split(" {9,}",line)
-        common_sids[sid.strip()] = meaning.strip() 
+        common_sids[sid.strip()] = meaning.strip()
 
   return common_sids
 
@@ -146,7 +145,7 @@ def get_sids_for_mids(linesl):
   regex = ".* SIDs *.*\( *MIDs? *="
   for line in linesl:
     if re.match(regex,line):
-      group = line.split("(")[0].strip() 
+      group = line.split("(")[0].strip()
       sids = re.findall("[0-9]+",line)
       sets[group] = [sids,{}]
 
@@ -157,7 +156,7 @@ def get_sids_for_mids(linesl):
       sid_dict = parse_sids_for_mid_group(group,"150",linesl)
 
     sets[group][1] = extend_dict(clean_ids(sid_dict))
-    
+
   return sets
 
 def parse_sids_for_mid_group(group,groupenddemarc,linesl):
@@ -170,7 +169,7 @@ def parse_sids_for_mid_group(group,groupenddemarc,linesl):
       found = True
 
     elif found:
-      if re.match(' +[0-9]+[^\.]',line): 
+      if re.match(' +[0-9]+[^\.]',line):
         try:
           sid,meaning = re.split(" {6,}",line.strip())
           dic[sid] = meaning
@@ -179,16 +178,16 @@ def parse_sids_for_mid_group(group,groupenddemarc,linesl):
           dbg(re.split(" {6,}",line.strip()))
 
       # last line we need
-      if groupenddemarc in line: 
+      if groupenddemarc in line:
         break
 
-  return dic 
+  return dic
 
 def get_mids_from_1708(lines1708):
   mids = {}
-  for line in lines1708[541:568]: 
+  for line in lines1708[541:568]:
     s = line.strip()
-    if re.match("[0-9]{1,3}",s): 
+    if re.match("[0-9]{1,3}",s):
       try:
         mid,meaning = re.split(" {6,}",s)
       except:
@@ -196,11 +195,11 @@ def get_mids_from_1708(lines1708):
         meaning = meaning125
     else:
       m = re.split("\(",line.strip())
-      if len(m) > 1: 
+      if len(m) > 1:
         meaning125 = m[1] + " J2497"
 
     mids[mid] = meaning
-    
+
     if "88" in mid:
       mids[mid] = mids[mid] + ". Suggested for dynamic allocation in J2497."
     if "87" in mid:
@@ -221,29 +220,28 @@ def combine_mid_ranges(linesl,lines1708):
 
 def clean_sids_for_mids(sids_for_mids):
   n = {}
-  for k,d in sids_for_mids.iteritems():
+  for k,d in sids_for_mids.tems():
     n[k] = clean_ids(d)
   return n
-      
+
 def clean_ids(ids):
   n = {}
-  for k,v in ids.iteritems():
+  for k,v in ids.items():
     if "(" in k: n[k[:k.find(" (")]] = v
     else: n[k] = v
   return n
 
-def range_from_hyphenated(item): 
-  key,meaning = item 
+def range_from_hyphenated(key, meaning):
   splitchar = ""
-  r = {} 
+  r = {}
 
-  if "-" in key: 
+  if "-" in key:
     splitchar = "-"
-  elif "\xe2\x80\x94" in key:
-    splitchar = "\xe2\x80\x94"
-  elif "\xe2\x80\x93" in key:
-    splitchar = "\xe2\x80\x93"
-  
+  elif b"\xe2\x80\x94".decode('utf-8') in key:
+    splitchar = b"\xe2\x80\x94".decode('utf-8')
+  elif b"\xe2\x80\x93".decode('utf-8') in key:
+    splitchar = b"\xe2\x80\x93".decode('utf-8')
+
   if splitchar:
     rng = key.split(splitchar)
     r = {str(n):meaning for n in range(int(rng[0]),int(rng[1])+1)}
@@ -256,9 +254,9 @@ def range_from_hyphenated(item):
 def extend_dict(d):
   # Take in dictionary of [msp]id:meanings and return expanded version
   r = {}
-  for item in d.iteritems():
-    res = range_from_hyphenated(item) 
-    r.update(res) 
+  for k,d in d.items():
+    res = range_from_hyphenated(k,d)
+    r.update(res)
   return r
 
 def get_next(it):
@@ -266,13 +264,13 @@ def get_next(it):
   line = next(it)
 
   while True:
-    if "\x0c" in line.strip(): line = next(it)
+    if b"\x0c".decode('utf-8') in line.strip(): line = next(it)
     elif "Downloaded from SAE International by" in line.strip(): line = next(it)
     elif " "*34+"J1587" in line.strip(): line = next(it)
     elif "_"*5 in line.strip(): line = next(it)
     elif not line.strip(): line = next(it)
     else: break
-    
+
   return line
 
 def combine_custom_database(filepath,doc):
@@ -280,13 +278,13 @@ def combine_custom_database(filepath,doc):
     Add or overwrite structs from custom database into our
     main object.
   """
-  
+
   try:
     fd = open(filepath,"rb")
   # Made the decision to keep processing with original struct
   #   but print error
   except IOError as e:
-    lg.error("IOError: %s" % e) 
+    lg.error("IOError: %s" % e)
     return doc
 
   override_dict = json.load(fd)
@@ -294,12 +292,12 @@ def combine_custom_database(filepath,doc):
 
   # doc.update(override_dict) is clobbering for some reason
   #   so do it more manually for now
-  for k,v in override_dict.iteritems():
+  for k,v in override_dict.items():
     doc[k].update(v)
 
   return doc
 
-       
+
 ############################################################
 # UTILS                                                    #
 # These are functions we may want to call from elsewhere   #
@@ -307,14 +305,14 @@ def combine_custom_database(filepath,doc):
 
 def dbg(s):
   pp.pprint(s)
-  
+
 def get_sid_mids():
   """ Return list of mids that have sid associations.
       Handy for quick check to see if next byte is an sid or pid,
       if I have interpreted the spec correctly.
   """
   l = [128, 175, 183, 184, 185,
-       186, 130, 176, 223, 136, 
+       186, 130, 176, 223, 136,
        137, 138, 139, 246, 247,
        140, 234, 142, 187, 188,
        143, 146, 200, 150, 151,
@@ -322,17 +320,17 @@ def get_sid_mids():
        167, 168, 169, 186, 178,
        190, 217, 218, 219, 222,
        232, 254, 248, 253, 177]
-  return l 
-  
+  return l
+
 def get_bytecount_from_pid(pid):
-  """ 
+  """
      The pid is the calculated value, which could be composed of several
      bytes when using page extensions.
      Return the number of bytes the pid utilizes. 3 for n. -1 for unknown
   """
   bytes1 = [(0,127),(256,383),(512,639),(768,895)]
   bytes2 = [(128,191),(384,447),(640,703),(896,959)]
-  bytesn = [(192,253),(448,509),(704,765),(960,1021)] 
+  bytesn = [(192,253),(448,509),(704,765),(960,1021)]
   # 254 is proprietary data. I will put it under "variable" len, as it is not
   #  addressed in the spec, but we had it in our captures
   bytesn.append((254,254))
@@ -341,11 +339,11 @@ def get_bytecount_from_pid(pid):
   for rng in bytes2:
     if pid in range(rng[0],rng[1]+1): return 2
   for rng in bytesn:
-    if pid in range(rng[0],rng[1]+1): return 3 
+    if pid in range(rng[0],rng[1]+1): return 3
   return -1
 
 def get_document_object(customdb="",nocache=False):
-   
+
   global linesl,lines1708
 
   tmpfile = "/tmp/J1587_1708_2497_doc_obj"
@@ -362,15 +360,15 @@ def get_document_object(customdb="",nocache=False):
     doc["pid_fields"]    = get_pid_fields(linesl)
 
     # Write the file to /tmp
-    fh = open(tmpfile,"w")
+    fh = open(tmpfile,"wb")
     pickle.dump(doc,fh,pickle.HIGHEST_PROTOCOL)
     fh.close()
 
-  else: 
+  else:
     # Load the cached file
-    # Reboot or cache file deletion will require 
+    # Reboot or cache file deletion will require
     #   reparsing the spec documents
-    fh = open(tmpfile,"r")
+    fh = open(tmpfile,"rb")
     doc = pickle.load(fh)
     fh.close()
 
@@ -380,26 +378,26 @@ def get_document_object(customdb="",nocache=False):
 
 
 def get_pid_fields(linesl):
-  """ Parse the data from the appendix to be used for better PID detail 
+  """ Parse the data from the appendix to be used for better PID detail
       This one needs a bit more work.
       Appendix F and sequence work
   """
 
   pid_fields = {}
-  line_iter = iter(linesl) 
+  line_iter = iter(linesl)
   # Need to come up with a good way to get this
   summary = ""
 
   for line in line_iter:
-   
+
     try:
       if re.match('^A\.[0-9]+',line):
         line = ""
 
-        while not re.match('^A\.[0-9]+',line.strip()): 
+        while not re.match('^A\.[0-9]+',line.strip()):
           cont = True
-          line = get_next(line_iter) 
-          
+          line = get_next(line_iter)
+
           if "Parameter Data Length:" in line:
             cont = False
             pdl = line.split(":")[1].strip()
@@ -422,7 +420,7 @@ def get_pid_fields(linesl):
             cont = False
             get_next(line_iter) # PID Data, which we discard
             line = get_next(line_iter) # [0-9]{1,3} [a-z]+
-            line_l = [x for x in line.strip().split(" ") if x] 
+            line_l = [x for x in line.strip().split(" ") if x]
             pid = line_l[0]
             seq = "".join(line_l[1:])
 
@@ -439,11 +437,11 @@ def get_pid_fields(linesl):
 
               # Found one case where the "\xe2\x80\x94" character was set as "-"
               #   in case this comes up somewhere else, I'll just do generic code
-              if re.match(" *[a-z]-",line): 
-                line = line.replace("-","\xe2\x80\x94")
+              if re.match(" *[a-z]-",line):
+                line = line.replace("-", b"\xe2\x80\x94".decode('utf-8'))
 
-              if "\xe2\x80\x94 " in line.strip():
-                a,b = line.strip().split("\xe2\x80\x94 ")
+              if b"\xe2\x80\x94 ".decode('utf-8') in line.strip():
+                a,b = line.strip().split(b"\xe2\x80\x94 ".decode('utf-8'))
                 # Sometimes we get "a a", for 2 byte pids where both bytes
                 #  represent the same value, which would be handled by sequence
                 a = a.strip()[0]
@@ -461,7 +459,7 @@ def get_pid_fields(linesl):
             pid_fields[pid]["MaximumRange"] = mr
             pid_fields[pid]["TransmissionUpdatePeriod"] = tup
             pid_fields[pid]["MessagePriority"] = mp
-            pid_fields[pid]["Sequence"] = seq.replace("\xe2\x80\xa6","...")
+            pid_fields[pid]["Sequence"] = seq.replace(b"\xe2\x80\xa6".decode('utf-8'),"...")
             #if pid == "254": # I need to treat this one as variable length
              # pid_fields[pid]["Sequence"] += "..."
             pid_fields[pid]["ByteDef"] = bytedef # This should be nested dict
@@ -491,7 +489,7 @@ def get_pid_fields(linesl):
         #  I no longer need it anyway
         #line_iter = itertools.chain([line],line_iter)
 
-    except StopIteration: 
+    except StopIteration:
       return pid_fields
 
 
@@ -524,7 +522,7 @@ if __name__ == "__main__":
   # Things to test within doc structure
   #['xdev_sids', 'fmis', 'mids', 'sids_for_mids', 'pid_fields', 'pids']
 
-  
+
   pid_fields = doc["pid_fields"]
 
   # Print which multi-byte PID sequences still need addressing
@@ -535,7 +533,7 @@ if __name__ == "__main__":
       if int(x) in handled_special: continue
       elif re.match("[a-z]+[a-z]1[a-z]2[a-z]3[a-z]4",bseq):
         continue
-      elif "NodataassociatedwithPID" in bseq: 
+      elif "NodataassociatedwithPID" in bseq:
         continue
       elif re.match("([a-z],)+[a-z]/[a-z],",bseq):
         continue
@@ -545,7 +543,7 @@ if __name__ == "__main__":
       elif re.match(".*(?P<n>([a-z])[^\1])(?P=n)",bseq) and "..." in bseq:
         continue
       # nabccdd...
-      elif re.match(".*((?P<n>[a-z])(?P=n){1})+?",bseq) and check2(bseq) and "..." in bseq: 
+      elif re.match(".*((?P<n>[a-z])(?P=n){1})+?",bseq) and check2(bseq) and "..." in bseq:
         continue
       # Print the special cases to be handled for multi-byte PIDs
       print(x,pid_fields[x]["Sequence"])
@@ -559,5 +557,5 @@ if __name__ == "__main__":
   #dbg(pid_fields["450"])
   #dbg(pid_fields["223"])
   dbg(doc["sids_for_mids"])
- 
+
 
