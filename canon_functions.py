@@ -1,4 +1,4 @@
-# File for functions that take in a line as a message, and output 
+# File for functions that take in a line as a message, and output
 #   the message in the format [int,int,...]
 # This is useful for handling input from different programs, while
 #   making minimal mods to the parsing code
@@ -37,6 +37,7 @@ def canon_besteffort(msg):
       2a00f6
       2a#00f6
       2a,00,f6
+      0x89,0x30,0x33
       (123.123) interface 2a#00f6 ; comment (case insensitive)
   """
   msg = msg.strip()
@@ -44,5 +45,6 @@ def canon_besteffort(msg):
   msg = msg.split(' ')[-1]
   msg = msg.replace(',', '')
   msg = msg.replace('#', '')
+  msg = msg.replace('0x', '')
   return [int(msg[i:i+2],16) for i in range(0,len(msg),2)]
 
