@@ -1,8 +1,10 @@
 #!/usr/bin/env python2.7
 
+import os, sys
 import struct_from_J1587 as j1587
 import itertools as it
-import re, socket, json, logging 
+import re, socket, json, logging
+import canon_functions
 
 # Helper funcs:
   # j1587.get_sid_mids()
@@ -33,7 +35,7 @@ def pid_not_in_whitelist(pid,msg,bytecount,single_double):
   global whitelist, whitelist_print
   if not msg: return False
   # Be sure we are interested in this PID
-  if whitelist and pid not in whitelist: 
+  if whitelist and pid not in whitelist:
     # Need to advance out PID "pointer"
     if bytecount == -1:
       del msg[0:]
@@ -54,9 +56,9 @@ def pid_not_in_whitelist(pid,msg,bytecount,single_double):
   whitelist_print = True
   return False
 
-def parse_pidbytes(mid,msg): 
-  """ This takes a message without the mid, nor the checksum 
-      This function is nasty. Need to try and clean it up by dividing 
+def parse_pidbytes(mid,msg):
+  """ This takes a message without the mid, nor the checksum
+      This function is nasty. Need to try and clean it up by dividing
       into more functions
   """
   global doc, json_message , print_message
@@ -83,7 +85,7 @@ def parse_pidbytes(mid,msg):
     #   same message
     elif pageval != 0:
       msg[0] += pageval
-      
+
     # Robustness for incorrect messages
     if msg is None: return False
     if not len(msg): return False
@@ -98,9 +100,9 @@ def parse_pidbytes(mid,msg):
 
     bytemessage = ""
 
-    # This happens often if there are bytes in the 
+    # This happens often if there are bytes in the
     #  message that should not be there (ie truckDuck insertion)
-    if str(pid) not in doc["pid_fields"]: 
+    if str(pid) not in doc["pid_fields"]:
         l.critical("PID not found 0x%x (%d)" % (pid,pid))
         l.debug([hex(x) for x in msg])
         continue
@@ -118,7 +120,7 @@ def parse_pidbytes(mid,msg):
 
     # Double work
     # match naabbcc... removing the parenthesis from naa(bbcc...)
-    elif pid not in single_double and re.match(".*((?P<n>[a-z])(?P=n){1})$",bsequence.replace("(","").replace(")","")) and check2(bsequence) and "..." in bsequence: 
+    elif pid not in single_double and re.match(".*((?P<n>[a-z])(?P=n){1})$",bsequence.replace("(","").replace(")","")) and check2(bsequence) and "..." in bsequence:
       l.info("double %d"%pid)
       double_repeat.append(pid)
     # match nababab...
@@ -131,7 +133,7 @@ def parse_pidbytes(mid,msg):
 
     if do_json: json_message["PIDs"].append(pid)
 
-    if not msg: 
+    if not msg:
       l.warn("Incomplete message for PID %d" % pid)
       continue
 
@@ -139,7 +141,7 @@ def parse_pidbytes(mid,msg):
 
     if bytecount == -1:
       l.debug("Bytecount is %d" % bytecount)
-      # Bytecount undefined, assume it is the rest of the message 
+      # Bytecount undefined, assume it is the rest of the message
       data = msg[0:]
       del msg[0:]
       l.warn("Bytecount undefined")
@@ -155,7 +157,7 @@ def parse_pidbytes(mid,msg):
         if pid == 0: # Request param
           try:
             bytemessage += "\n\t\t("+doc["pids"][str(data[0])]+")"
-          except Exception as e : 
+          except Exception as e :
             l.critical(e)
             return False
       except:
@@ -177,7 +179,7 @@ def parse_pidbytes(mid,msg):
           l.warn("Invalid message")
           return False
         bytemessage += "\n"
-        
+
     elif bytecount == 3:
       l.debug("Bytecount is %d" % bytecount)
       if not pid: return
@@ -187,7 +189,7 @@ def parse_pidbytes(mid,msg):
         num_bytes = get_nbytes_for_var_pids(pid,msg)
         if not num_bytes:
           num_bytes = len(msg)
-      else: 
+      else:
         l.info("ISSUE %d" % pid)
         return
       data = msg[0:num_bytes+1]
@@ -197,12 +199,12 @@ def parse_pidbytes(mid,msg):
       special_pid = False
       if pid in single_double:
         special_pid = True
-      elif not re.match("^[a-z]+$",doc["pid_fields"][str(pid)]["Sequence"]): 
+      elif not re.match("^[a-z]+$",doc["pid_fields"][str(pid)]["Sequence"]):
         special_pid = True
 
       # Multi-byte sequence
       for i in range(len(data)):
-        # This will break on repeated value or optional value cases, 
+        # This will break on repeated value or optional value cases,
         #   so that is the difference b/w two-byte and multi-byte
         if special_pid: break
         bytemessage += "    0x%02x - " % data[i]
@@ -213,7 +215,7 @@ def parse_pidbytes(mid,msg):
           l.warn("Rest of message could not be handled")
           del json_message["DATA"][pid]
           return
-          
+
         bytemessage += "\n"
 
     if str(pid) in doc["pids"]:
@@ -224,10 +226,10 @@ def parse_pidbytes(mid,msg):
       return False
 
 
-    if pregular: 
+    if pregular:
       print_message += "PID 0x%02x (%d): %s\n" % (pid,pid,meaning)
-      if verbosity > 0: 
-        print_message += "  _Resolution  : %s\n" % doc["pid_fields"][str(pid)]["Resolution"] 
+      if verbosity > 0:
+        print_message += "  _Resolution  : %s\n" % doc["pid_fields"][str(pid)]["Resolution"]
         print_message += "  _MaxRange    : %s\n" % doc["pid_fields"][str(pid)]["MaximumRange"]
         print_message += "  _UpdatePeriod: %s\n" % doc["pid_fields"][str(pid)]["TransmissionUpdatePeriod"]
         print_message += "  _DataType    : %s\n" % doc["pid_fields"][str(pid)]["DataType"]
@@ -250,11 +252,11 @@ def parse_pidbytes(mid,msg):
     # Handle the special pids
     # >> Should get overwritten with custom database, which needs to be tested
     if pid == 194: # Need to do fancy things with pid/sid and fmis
-      parse_194(mid,data) 
+      parse_194(mid,data)
     elif pid in single_repeat:
       # These pids all have repeating last byte seqs (ex: nabccccc...)
       parse_single_repeated_byte_seq(pid,data)
-    elif "NodataassociatedwithPID" in doc["pid_fields"][str(pid)]["Sequence"]: 
+    elif "NodataassociatedwithPID" in doc["pid_fields"][str(pid)]["Sequence"]:
       pass
     elif pid in double_repeat:
       parse_double_repeated_byte_seq(pid,data)
@@ -302,7 +304,7 @@ def parse_double_repeated_byte_seq(pid,data):
   incd      = False
 
   # nabccdd... seems like PID 223 is the only one right meow ;-)
-  if re.match(".*((?P<n>[a-z])(?P=n){1})+?",bsequence): 
+  if re.match(".*((?P<n>[a-z])(?P=n){1})+?",bsequence):
     double = True
 
   # nababab
@@ -320,7 +322,7 @@ def parse_double_repeated_byte_seq(pid,data):
         tmpmsg = doc["pid_fields"][str(pid)]["ByteDef"][bsequence[-1]]
         # Decided to increment whatever number is in here
         m = re.match(".*([0-9])",tmpmsg)
-        num = int(tmpmsg[m.start(1):m.end(1)]) 
+        num = int(tmpmsg[m.start(1):m.end(1)])
         # Logic on incrementing every other time
         if not incd:
           inc += 1
@@ -350,7 +352,7 @@ def parse_double_repeated_byte_seq(pid,data):
 
 def parse_single_repeated_byte_seq(pid,data):
   """ Give meaning to the PIDs that have repeated byte sequences in
-        their definitions. 
+        their definitions.
   """
   global doc, print_message, json_message
 
@@ -376,8 +378,8 @@ def parse_single_repeated_byte_seq(pid,data):
   bsequence = bsequence.strip(".")
 
   if "Number of parameter data characters" in doc["pid_fields"][str(pid)]["ByteDef"][bsequence[0]]:
-    # Choosing to ignore cases like 
-    #  Number of parameter data characters = 4, 
+    # Choosing to ignore cases like
+    #  Number of parameter data characters = 4,
     # Being that the byte could still have a value other than the expected
     iterations = range(data[0]+1)
   else:
@@ -385,7 +387,7 @@ def parse_single_repeated_byte_seq(pid,data):
 
   for i in iterations:
     # Don't get hung up on bad message
-    if i not in data: return 
+    if i not in data: return
 
     bytemessage += "    0x%02x - " % data[i]
     # grab the corresponding definition of the current byte
@@ -407,8 +409,8 @@ def parse_single_repeated_byte_seq(pid,data):
   if pregular and verbosity > 0: print_message += bytemessage
 
 
-def parse_194(mid,msg): 
-  """ PID 194 requires some special attention. 
+def parse_194(mid,msg):
+  """ PID 194 requires some special attention.
       This function parses its data.
   """
 
@@ -416,7 +418,7 @@ def parse_194(mid,msg):
   # Just in case we need it later with all the crazy things
   #  getting changed here
   num_bytes = msg.pop(0)
-  
+
   while msg:
     sid_pid = msg.pop(0)
     if msg:
@@ -424,7 +426,7 @@ def parse_194(mid,msg):
     else: continue
     fault_inactive = False
     std_code = False
-    is_sid = False 
+    is_sid = False
     occurrence_count = False
 
     if code_char & 128: # occurence count included
@@ -462,31 +464,31 @@ def parse_194(mid,msg):
       print_message += " "*9 + "- Fault is %s\n" % ("inactive" if fault_inactive else "active")
       print_message += "%s\n" % diag_code
 
-    if do_json: 
+    if do_json:
       json_message["sid_or_pid"] = "%s" % sid_s if is_sid else pid_s
       json_message["occurrence"] = occurrence.strip()
       json_message["fmi_info"] = fmiinfo.strip()
       json_message["fault"] = "Fault is %s" % ("inactive" if fault_inactive else "active")
       json_message["diag_code"] = diag_code.strip()
 
-    
+
 def sidbyte_meaning(mid,byte):
   """ Given an MID and a byte, return its SID meaning """
   global doc
   sets = doc["sids_for_mids"]
 
-  for k,v in sets.iteritems():
-    if str(mid) in v[0] and str(byte) in v[1].keys():
+  for k,v in sets.items():
+    if str(mid) in v[0] and str(byte) in list(v[1].keys()):
       return sets[k][1][str(byte)]
     elif str(byte) in doc["xdev_sids"]:
       return doc["xdev_sids"][str(byte)]
-  
+
   # Decided not to raise errors and just keep chugging
   #raise KeyError("MID %d and SID %d combination not found" % (mid,byte))
   l.critical("MID %d and SID %d combination not found" % (mid,byte))
   return False
 
-def pidbyte_meaning(byte): 
+def pidbyte_meaning(byte):
   """ Given a byte, return its PID meaning """
   global doc
   if str(byte) in doc["pids"]:
@@ -496,7 +498,7 @@ def pidbyte_meaning(byte):
     l.critical("Pid %d not found in pids of document" % byte)
     return False
 
-def fmibyte_meaning(byte): 
+def fmibyte_meaning(byte):
   """ Given a byte, return its FMI meaning """
   global doc
   if str(byte) in doc["fmis"]:
@@ -507,12 +509,12 @@ def fmibyte_meaning(byte):
     return False
 
 def shrink_page_extention_pids(msg):
-  """ If there is a pid in the message with a page extension, 
+  """ If there is a pid in the message with a page extension,
       convert it to be the larger single int value
       ex 255,1 -> 256  ...   255,255,1 -> 511 ...
       Return the current page value and new message
   """
-  if not msg or len(msg) < 2: 
+  if not msg or len(msg) < 2:
       l.warn("NONE message")
       return (None,None)
   # Page extensions can only take place directly after the MID
@@ -526,7 +528,7 @@ def shrink_page_extention_pids(msg):
   msg.insert(0,val)
 
   return (pageval,msg)
-  
+
 def parse_message(line):
   """ Parse the message.
       If checksum specified, we know it is included,
@@ -535,16 +537,19 @@ def parse_message(line):
   global doc, messages_parsed_count, canon_function, json_message
   global print_message, checksums, whitelist_print
 
-  if not line or len(line) == 0 or line[0] == "," or line[-1] == ",": 
+  if not line or len(line) == 0 or line[0] == "," or line[-1] == ",":
     l.warn("Invalid message: %s" % line)
     return
 
-  msg = canon_function(line)
+  if canon_function:
+    msg = canon_function(line)
+  else:
+    msg = canon_functions.canon_besteffort(line)
 
-  if pregular: 
+  if pregular:
     print_message += "MSG: [%s]\n" % ",".join(hex(x) for x in msg)
     if verbosity > 1: print_message += "     (%s)\n" % msg
-  json_message["MSG"] = msg 
+  json_message["MSG"] = msg
 
   if len(msg) > 21:
     l.warn("Message is too long")
@@ -569,20 +574,20 @@ def parse_message(line):
   json_message["CLC_CHECKSUM"] = calculated_checksum
 
   # Be specific about this being an on or off mid
-  if mid == 10: 
+  if mid == 10:
     m = m.replace("ON/OFF","ON")
     json_message["MID_DEF"] = doc["mids"][str(mid)].replace("ON/OFF","ON")
-  elif mid == 11: 
+  elif mid == 11:
     m = m.replace("ON/OFF","OFF")
     json_message["MID_DEF"] = doc["mids"][str(mid)].replace("ON/OFF","OFF")
   if pregular: print_message += m
 
   # J1708 range
-  if mid < 128 and mid > -1: 
-    if checksums: 
+  if mid < 128 and mid > -1:
+    if checksums:
       if pregular: print_message += "  DATA: %s\n" % ",".join(hex(x) for x in msg[1:-1])
       json_message["DATA"] = msg[1:-1]
-    else: 
+    else:
       if pregular: print_message += "  DATA: %s\n" % ",".join(hex(x) for x in msg[1:])
       json_message["DATA"] = msg[1:]
   # J1587 range
@@ -606,16 +611,16 @@ def parse_message(line):
   # Empty the message
   json_message = dict()
   print_message = ""
-  
+
   # Print packet delimeter
-  if pdelim: 
+  if pdelim:
     messages_parsed_count += 1
     print("\n-----------------%d-----------------\n" % messages_parsed_count)
 
   sys.stdout.flush()
 
 def tcp_read(port):
-  """ Get messages from TCP socket 
+  """ Get messages from TCP socket
       Use something like this from the client:
       cat <filename> | split -l 10 --filter "cat -" | nc -q0 <server> <port>
       Otherwise, reading fails due to weird packets. This should be addressed
@@ -637,7 +642,7 @@ def tcp_read(port):
             parse_message(msg)
 
 def udp_read(port):
-  """ Get messages from UDP socket 
+  """ Get messages from UDP socket
       Use something like this from the client:
       cat <filename> | split -l 10 --filter "cat -" | nc -u -q0 <server> <port>
   """
@@ -655,9 +660,8 @@ def udp_read(port):
 
 # BIENVENUE
 if __name__ == "__main__":
-  
+
   import argparse as ap, threading as th
-  import os, sys 
 
   parser = ap.ArgumentParser(description="Program to make sense of logged J1708/J1587 data")
   parser.add_argument("-c","--customdb",help="The filename of the file that contains the custom database in JSON format")
@@ -691,7 +695,7 @@ if __name__ == "__main__":
 
   # Set verbosity
   verbosity = args.v
-  
+
   # Setup the PID whitelist
   whitelist = args.whitelist
 
@@ -701,21 +705,20 @@ if __name__ == "__main__":
   # Print regular output?
   pregular = args.d
 
-  import canon_functions
   # Are we trying to canonicalize?
-  if args.canon: 
+  if args.canon:
     canon_function = getattr(canon_functions,args.canon)
-  else: 
+  else:
     canon_function = getattr(canon_functions,'canon_besteffort')
 
   # Are we printing JSON
-  do_json = args.do_json 
+  do_json = args.do_json
 
   # How about pretty printing JSON
   formatt = args.format
 
   # Is checksum included
-  checksums = args.checksums 
+  checksums = args.checksums
 
   # Iterate through the provided files
   if args.filenames:
@@ -731,14 +734,14 @@ if __name__ == "__main__":
           parse_message(msg)
 
   # Setup udp and or tcp sockets for listening
-  if args.t: 
+  if args.t:
     tcpthread = th.Thread(target=tcp_read,args=(args.t,))
     tcpthread.daemon = True
     tcpthread.start()
-  if args.u: 
+  if args.u:
     udpthread = th.Thread(target=udp_read,args=(args.u,))
     udpthread.daemon = True
     udpthread.start()
 
   # Keep alive until Ctrl-C
-  if args.t or args.u: raw_input()
+  if args.t or args.u: input()
