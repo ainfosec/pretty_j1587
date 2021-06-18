@@ -622,7 +622,7 @@ def canonicalize(line):
   return msg
 
 
-def pretty_print_all(message_queue, block=True, timeout=None):
+def pretty_print_all(message_queue, block=True, timeout=1):  # TODO no timeout (requires queue EOF in py-hv-networks)
   while True:
     try:
       msg = message_queue.get(block=block, timeout=timeout)
@@ -713,10 +713,13 @@ def pretty_print(msg):
   sys.stdout.flush()
   return
 
+
 class TcpLineReceiver(threading.Thread):
   def __init__(self, port, out_queue):
+    super().__init__()
     self.port = port
     self.out_queue = out_queue
+    self.daemon = True
 
   def run(self):
     """ Get messages from TCP socket
@@ -736,38 +739,41 @@ class TcpLineReceiver(threading.Thread):
       while True:
         data = conn.recv(1024)
         if data:
+          data = data.decode('utf-8')
           for msg in data.split("\n"):
             if msg:
-              self.out_queue.put(msg)
+              self.out_queue.put(canonicalize(msg))
 
 
 class UdpLineReceiver(threading.Thread):
-  def __init(self, port, out_queue):
+  def __init__(self, port, out_queue):
+    super().__init__()
     self.port = port
     self.out_queue = out_queue
+    self.daemon = True
 
   def run(self):
     """ Get messages from UDP socket
         Use something like this from the client:
         cat <filename> | split -l 10 --filter "cat -" | nc -u -q0 <server> <port>
     """
-    if not self.port: return
-
     sk = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sk.bind(("0.0.0.0",int(self.port)))
 
     while True:
-      data, addr = sk.recv(1024)
+      data = sk.recv(1024)
       if data:
+        data = data.decode('utf-8')
         for msg in data.split("\n"):
           if msg:
-            self.out_queue.put(msg)
-
+            self.out_queue.put(canonicalize(msg))
 
 class FilesReceiver(threading.Thread):
   def __init__(self, filenames, out_queue):
+    super().__init__()
     self.filenames = filenames
     self.out_queue = out_queue
+    self.daemon = True
 
   def run(self):
     for filename in self.filenames:
@@ -777,7 +783,7 @@ class FilesReceiver(threading.Thread):
           if not msg:
             break
           self.out_queue.put(canonicalize(msg))
-      elif os.path.exists(filename):
+      else:
         for msg in open(filename, "r").readlines():
           self.out_queue.put(canonicalize(msg))
 
@@ -849,17 +855,14 @@ if __name__ == "__main__":
   # Iterate through the provided files
   if args.filenames:
     files_thread = FilesReceiver(args.filenames, message_queue)
-    files_thread.daemon = True
     files_thread.start()
 
   # Setup udp and or tcp sockets for listening
   if args.t:
     tcpthread = TcpLineReceiver(args.t, message_queue)
-    tcpthread.daemon = True
     tcpthread.start()
   if args.u:
     udpthread = UdpLineReceiver(args.u, message_queue)
-    udpthread.daemon = True
     udpthread.start()
 
   pretty_print_all(message_queue)
