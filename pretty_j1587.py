@@ -138,7 +138,7 @@ def parse_pidbytes(mid,msg):
     if do_json: json_message["PIDs"].append(pid)
 
     if not msg:
-      l.warn("Incomplete message for PID %d" % pid)
+      l.warning("Incomplete message for PID %d" % pid)
       continue
 
     json_message["DATA"][pid]["bytes_def"] = dict()
@@ -148,7 +148,7 @@ def parse_pidbytes(mid,msg):
       # Bytecount undefined, assume it is the rest of the message
       data = msg[0:]
       del msg[0:]
-      l.warn("Bytecount undefined")
+      l.warning("Bytecount undefined")
 
     elif bytecount == 1:
       l.debug("Bytecount is %d" % bytecount)
@@ -165,7 +165,7 @@ def parse_pidbytes(mid,msg):
             l.critical(e)
             return False
       except:
-        l.warn("Invalid message")
+        l.warning("Invalid message")
         return False
       bytemessage += "\n"
 
@@ -180,7 +180,7 @@ def parse_pidbytes(mid,msg):
           bytemessage += doc["pid_fields"][str(pid)]["ByteDef"][bsequence[i]]
           json_message["DATA"][pid]["bytes_def"][data[i]] = doc["pid_fields"][str(pid)]["ByteDef"][bsequence[i]]
         except:
-          l.warn("Invalid message")
+          l.warning("Invalid message")
           return False
         bytemessage += "\n"
 
@@ -216,7 +216,7 @@ def parse_pidbytes(mid,msg):
           bytemessage += doc["pid_fields"][str(pid)]["ByteDef"][bsequence[i]]
           json_message["DATA"][pid]["bytes_def"][data[i]] = doc["pid_fields"][str(pid)]["ByteDef"][bsequence[i]]
         except :
-          l.warn("Rest of message could not be handled")
+          l.warning("Rest of message could not be handled")
           del json_message["DATA"][pid]
           return
 
@@ -226,7 +226,7 @@ def parse_pidbytes(mid,msg):
       meaning = doc["pids"][str(pid)]
     else:
       #raise KeyError("Pid %d not encountered in doc object" % pid)
-      l.warn("Bad packet: %s" % msg)
+      l.warning("Bad packet: %s" % msg)
       return False
 
 
@@ -367,7 +367,7 @@ def parse_single_repeated_byte_seq(pid,data):
 
   if "..." not in bsequence and pid not in [254,192,448]:
     #raise ValueError("'...' not found in byte sequence for pid %d" % pid)
-    l.warn("'...' not found in byte sequence for pid %d" % pid)
+    l.warning("'...' not found in byte sequence for pid %d" % pid)
     return False
 
   # nab1b2b3b4...
@@ -436,7 +436,7 @@ def parse_194(mid,msg):
     if code_char & 128: # occurence count included
       if not msg:
         l.info("Occurrence count was NOT included")
-        l.warn("Invalid message")
+        l.warning("Invalid message")
         return False
       occurrence_count = msg.pop(0)
       occurrence = " "*9 + "- Occurrance count: %d" % occurrence_count
@@ -519,7 +519,7 @@ def shrink_page_extention_pids(msg):
       Return the current page value and new message
   """
   if not msg or len(msg) < 2:
-      l.warn("NONE message")
+      l.warning("NONE message")
       return (None,None)
   # Page extensions can only take place directly after the MID
   #  All the other ones are from the same page...
@@ -612,7 +612,7 @@ def canonicalize(line):
   global print_message, checksums, whitelist_print
 
   if not line or len(line) == 0 or line[0] == "," or line[-1] == ",":
-    l.warn("Invalid message: %s" % line)
+    l.warning("Invalid message: %s" % line)
     return
 
   if canon_function:
@@ -644,7 +644,7 @@ def pretty_print(msg):
   json_message["MSG"] = msg
 
   if len(msg) > 21:
-    l.warn("Message is too long")
+    l.warning("Message is too long")
     return False
   mid = msg[0]
   if checksums:
@@ -654,7 +654,7 @@ def pretty_print(msg):
       if pregular: print_message += "MSG CHECKSUM: 0x%02x (%d)\n" % (message_checksum,message_checksum)
       json_message["MSG_CHECKSUM"] = message_checksum
     else:
-      l.warn("-Message checksum not equal to calculated checksum-".upper())
+      l.warning("-Message checksum not equal to calculated checksum-".upper())
       l.info("0x%02x <> 0x%02x"%(message_checksum,calculated_checksum))
   else:
     calculated_checksum = calc_checksum(msg)
