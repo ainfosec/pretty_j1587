@@ -1,6 +1,9 @@
 #!/usr/bin/env python2.7
-
+import multiprocessing
 import os, sys
+import queue
+import threading
+
 import struct_from_J1587 as j1587
 import itertools as it
 import re, socket, json, logging
@@ -12,6 +15,7 @@ import canon_functions
   # j1587.get_document_object()
 # Vars
   # j1587.dbg
+from hv_networks.J1587Driver import J1708DriverFactory, set_j1708_driver_factory, J1587Driver
 
 messages_parsed_count = 0
 json_message = dict()
@@ -529,7 +533,77 @@ def shrink_page_extention_pids(msg):
 
   return (pageval,msg)
 
-def parse_message(line):
+class FeederJ1708Driver:
+  def __init__(self):
+    self.message_queue = multiprocessing.Queue()
+    self.stopped = threading.Event()
+    return
+
+  def read_message(self, checksum=False, timeout=0.5):
+    if self.stopped.is_set():
+      return None
+
+    msg = None
+    try:
+      msg = self.message_queue.get(block=True, timeout=timeout)
+    except queue.Empty:
+      pass
+    return msg
+
+  def send_message(self, buf, has_check=False):
+    return
+
+  def close(self):
+    self.stopped.set()
+    self.message_queue.close()
+
+  def __del__(self):
+    self.close()
+
+  def put(self, obj):
+    self.message_queue.put(obj)
+
+
+class FeederJ1708Factory(J1708DriverFactory):
+  def __init__(self):
+    self.a_lock = threading.Lock()
+    with self.a_lock:
+      self.memo_fake_driver = None
+    super(FeederJ1708Factory, self).__init__()
+
+  def make(self):
+    with self.a_lock:
+      if self.memo_fake_driver is None:
+        self.memo_fake_driver = FeederJ1708Driver()
+      a = self.memo_fake_driver
+    return a
+
+  def clear(self):
+    with self.a_lock:
+      self.memo_fake_driver = None
+
+
+class PyHvNetworksTransportReassemblerQueue:
+  def __init__(self, suppress_fragments):
+    self.suppress_fragments = suppress_fragments
+    self.fake_j1708_factory = FeederJ1708Factory()
+    set_j1708_driver_factory(self.fake_j1708_factory)
+    self.j1708_driver = self.fake_j1708_factory.make()
+    self.j1587_driver = J1587Driver(0x00, suppress_fragments=suppress_fragments,
+                                    preempt_cts=True, silent=True, reassemble_others=True)
+
+  def put(self, message):
+    self.j1708_driver.put(message)
+
+  def get(self, block=True, timeout=None):
+    return self.j1587_driver.read_message(block, timeout)
+
+  def close(self):
+    self.fake_j1708_factory.clear()
+    self.j1587_driver.cleanup()
+
+
+def canonicalize(line):
   """ Parse the message.
       If checksum specified, we know it is included,
       so test it. If not, create it.
@@ -545,6 +619,24 @@ def parse_message(line):
     msg = canon_function(line)
   else:
     msg = canon_functions.canon_besteffort(line)
+  return msg
+
+
+def pretty_print_all(message_queue, block=True, timeout=None):
+  while True:
+    try:
+      msg = message_queue.get(block=block, timeout=timeout)
+      if msg is None:
+        return
+      pretty_print(msg)
+    except queue.Empty:
+      break
+  return
+
+
+def pretty_print(msg):
+  global doc, messages_parsed_count, canon_function, json_message
+  global print_message, checksums, whitelist_print
 
   if pregular:
     print_message += "MSG: [%s]\n" % ",".join(hex(x) for x in msg)
@@ -618,45 +710,76 @@ def parse_message(line):
     print("\n-----------------%d-----------------\n" % messages_parsed_count)
 
   sys.stdout.flush()
+  return
 
-def tcp_read(port):
-  """ Get messages from TCP socket
-      Use something like this from the client:
-      cat <filename> | split -l 10 --filter "cat -" | nc -q0 <server> <port>
-      Otherwise, reading fails due to weird packets. This should be addressed
-      when there is time. The issue is getting a full line...
-  """
-  if not port: return
+class TcpLineReceiver(threading.Thread):
+  def __init__(self, port, out_queue):
+    self.port = port
+    self.out_queue = out_queue
 
-  sk = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-  sk.bind(("0.0.0.0",int(port)))
-  sk.listen(1)
-  conn, addr = sk.accept()
+  def run(self):
+    """ Get messages from TCP socket
+        Use something like this from the client:
+        cat <filename> | split -l 10 --filter "cat -" | nc -q0 <server> <port>
+        Otherwise, reading fails due to weird packets. This should be addressed
+        when there is time. The issue is getting a full line...
+    """
+    if not self.port: return
 
-  if conn:
+    sk = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sk.bind(("0.0.0.0",int(self.port)))
+    sk.listen(1)
+    conn, addr = sk.accept()
+
+    if conn:
+      while True:
+        data = conn.recv(1024)
+        if data:
+          for msg in data.split("\n"):
+            if msg:
+              self.out_queue.put(msg)
+
+
+class UdpLineReceiver(threading.Thread):
+  def __init(self, port, out_queue):
+    self.port = port
+    self.out_queue = out_queue
+
+  def run(self):
+    """ Get messages from UDP socket
+        Use something like this from the client:
+        cat <filename> | split -l 10 --filter "cat -" | nc -u -q0 <server> <port>
+    """
+    if not self.port: return
+
+    sk = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sk.bind(("0.0.0.0",int(self.port)))
+
     while True:
-      data = conn.recv(1024)
+      data, addr = sk.recv(1024)
       if data:
         for msg in data.split("\n"):
           if msg:
-            parse_message(msg)
+            self.out_queue.put(msg)
 
-def udp_read(port):
-  """ Get messages from UDP socket
-      Use something like this from the client:
-      cat <filename> | split -l 10 --filter "cat -" | nc -u -q0 <server> <port>
-  """
-  if not port: return
 
-  sk = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-  sk.bind(("0.0.0.0",int(port)))
+class FilesReceiver(threading.Thread):
+  def __init__(self, filenames, out_queue):
+    self.filenames = filenames
+    self.out_queue = out_queue
 
-  while True:
-    data, addr = sk.recvfrom(1024)
-    if data:
-      for msg in data.split("\n"):
-        if msg:
-          parse_message(msg)
+  def run(self):
+    for filename in self.filenames:
+      if filename == "-":
+        while True:
+          msg = sys.stdin.readline()
+          if not msg:
+            break
+          self.out_queue.put(canonicalize(msg))
+      elif os.path.exists(filename):
+        for msg in open(filename, "r").readlines():
+          self.out_queue.put(canonicalize(msg))
+
 
 # BIENVENUE
 if __name__ == "__main__":
@@ -720,28 +843,22 @@ if __name__ == "__main__":
   # Is checksum included
   checksums = args.checksums
 
+  message_queue = PyHvNetworksTransportReassemblerQueue(suppress_fragments=True)
+
   # Iterate through the provided files
   if args.filenames:
-    for filename in args.filenames:
-      if filename == "-":
-        while True:
-          msg = sys.stdin.readline()
-          if not msg:
-            break
-          parse_message(msg)
-      elif os.path.exists(filename):
-        for msg in open(filename,"r").readlines():
-          parse_message(msg)
+    files_thread = FilesReceiver(args.filenames, message_queue)
+    files_thread.daemon = True
+    files_thread.start()
 
   # Setup udp and or tcp sockets for listening
   if args.t:
-    tcpthread = th.Thread(target=tcp_read,args=(args.t,))
+    tcpthread = TcpLineReceiver(args.t, message_queue)
     tcpthread.daemon = True
     tcpthread.start()
   if args.u:
-    udpthread = th.Thread(target=udp_read,args=(args.u,))
+    udpthread = UdpLineReceiver(args.u, message_queue)
     udpthread.daemon = True
     udpthread.start()
 
-  # Keep alive until Ctrl-C
-  if args.t or args.u: input()
+  pretty_print_all(message_queue)
