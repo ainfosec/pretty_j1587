@@ -105,6 +105,12 @@ class J1587TestClass(ut.TestCase):
     with captured_output() as (sout,serr):
       self.pretty_print_all()
     self.assertTrue("TRANSMISSION" in sout.getvalue().strip())
+  def test_reassemble(self):
+    self.fill_queue(["ac,c5,05,80,01,01,0c,00",
+                     "ac,c6,0e,80,01,00,c8,07,04,06,00,46,41,41,5a,05,48"])
+    with captured_output() as (sout,serr):
+      self.pretty_print_all()
+    self.assertTrue("MSG: [0xac,0x0,0xc8,0x7,0x4,0x6,0x0,0x46,0x41,0x41,0x5a,0x5,0x48]" in sout.getvalue().strip())
 
   # TODO: test UdpLineReceiver, TcpLineReceiver and FilesReceiver
 

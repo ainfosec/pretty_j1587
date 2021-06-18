@@ -628,6 +628,7 @@ def pretty_print_all(message_queue, block=True, timeout=None):
       msg = message_queue.get(block=block, timeout=timeout)
       if msg is None:
         return
+      msg = list(msg)  # pretty_j1587 deals in lists of ints
       pretty_print(msg)
     except queue.Empty:
       break
