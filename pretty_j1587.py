@@ -876,8 +876,11 @@ if __name__ == "__main__":
 
   message_queue = PyHvNetworksTransportReassemblerQueue(suppress_fragments=True)
 
+  timeout = None  # use 'follow' behaviour: wait forever (end with Ctrl-C) for all inputs except a regular file
   # Iterate through the provided files
   if args.filenames:
+    if '-' not in args.filenames:
+      timeout = None
     files_thread = FilesReceiver(args.filenames, message_queue)
     files_thread.start()
 
@@ -893,4 +896,4 @@ if __name__ == "__main__":
     udpthread = UdpLineReceiver(args.u, message_queue)
     udpthread.start()
 
-  pretty_print_all(message_queue)
+  pretty_print_all(message_queue, timeout=timeout)
