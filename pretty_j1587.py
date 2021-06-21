@@ -10,12 +10,6 @@ import itertools as it
 import re, socket, json, logging
 import canon_functions
 
-# Helper funcs:
-  # j1587.get_sid_mids()
-  # j1587.get_bytecount_from_pid()
-  # j1587.get_document_object()
-# Vars
-  # j1587.dbg
 from hv_networks.J1587Driver import J1708DriverFactory, set_j1708_driver_factory, J1587Driver
 
 messages_parsed_count = 0
