@@ -769,6 +769,26 @@ class UdpLineReceiver(threading.Thread):
           if msg:
             self.out_queue.put(canonicalize(msg))
 
+
+class TruckDuckUdpReceiver(threading.Thread):
+  def __init__(self, interface_name, out_queue):
+    super().__init__()
+    self.out_queue = out_queue
+    self.daemon = True
+
+    self.port = 6970
+    if interface_name == 'j1708_2' or interface_name == 'plc':
+      self.port = 6972
+    self.sock = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
+    self.sock.bind(('localhost', self.port))
+
+  def run(self):
+    while True:
+      data = self.sock.recv(256)
+      if data:
+        self.out_queue.put(data)
+
+
 class FilesReceiver(threading.Thread):
   def __init__(self, filenames, out_queue):
     super().__init__()
@@ -797,13 +817,16 @@ if __name__ == "__main__":
   parser = ap.ArgumentParser(description="Program to make sense of logged J1708/J1587 data")
   parser.add_argument("-c","--customdb",help="The filename of the file that contains the custom database in JSON format")
   parser.add_argument("-d",action="store_false",default=True,help="Disable default (grepable) output")
-  parser.add_argument("-f","--filenames",help="The filename(s) of the file(s) that contain(s) the messages. Use - for stdin",nargs="+",required=True)
+  parser.add_argument("-f","--filenames",help="The filename(s) of the file(s) that contain(s) the messages. Use - for stdin",nargs="?")
   parser.add_argument("-j","--canon",help="Use this function to reformat each line of input for parsing")
   parser.add_argument("-l",nargs="?",default="notset",choices=["critical","error","info","debug","notset"],help="Set the minimum level log level")
   parser.add_argument("-n","--nocache",action="store_true",help="Parse the J-specs every time command is run and generate a new cache file")
   parser.add_argument("-p",action="store_true",default=False,help="Print packet delimeters")
   parser.add_argument("-t",help="Define a TCP port to use as input")
   parser.add_argument("-u",help="Define a UDP port to use as input")
+  parser.add_argument('--interface', default=None, const=None,
+                      nargs='?', choices=['j1708', 'j1708_2', 'plc'],
+                      help='choose the (TruckDuck) interface to dump from. NB: also enables --checksums')
   parser.add_argument("-v",nargs="?",default=0,type=int,help="Set the verbosity for regular output",choices=[0,1,2])
   parser.add_argument("-w","--whitelist",nargs="*",metavar="PID",type=int,help="List of PIDs to be parsed, ignoring other messages")
   parser.add_argument("-x","--checksums",action="store_true",help="Tells the parser that the messages contain checksums")
@@ -859,6 +882,10 @@ if __name__ == "__main__":
     files_thread.start()
 
   # Setup udp and or tcp sockets for listening
+  if args.interface:
+    checksums = True
+    truck_duck_thread = TruckDuckUdpReceiver(args.interface, message_queue)
+    truck_duck_thread.start()
   if args.t:
     tcpthread = TcpLineReceiver(args.t, message_queue)
     tcpthread.start()
