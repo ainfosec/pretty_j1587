@@ -633,6 +633,8 @@ def pretty_print_all(message_queue, block=True, timeout=1):  # TODO no timeout (
       pretty_print(msg)
     except queue.Empty:
       break
+    except KeyboardInterrupt:
+      break
   return
 
 
