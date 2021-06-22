@@ -201,8 +201,6 @@ class TcpLineReceiver(ut.TestCase):
 
     with captured_output() as (sout,serr):
       parser.pretty_print_all(self.message_queue)
-    print(sout.getvalue())
-    print(serr.getvalue())
     self.assertTrue("PID 0x30" in sout.getvalue())
     self.assertTrue("MSG: [0xac,0x0,0xc8,0x7,0x4,0x6,0x0,0x46,0x41,0x41,0x5a,0x5,0x48]" in sout.getvalue().strip())
 
