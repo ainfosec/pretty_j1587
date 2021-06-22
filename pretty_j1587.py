@@ -133,7 +133,7 @@ def parse_pidbytes(mid,msg):
     if do_json: json_message["PIDs"].append(pid)
 
     if not msg:
-      l.warning("Incomplete message for PID %d" % pid)
+      l.error("Incomplete message for PID %d" % pid)
       continue
 
     json_message["DATA"][pid]["bytes_def"] = dict()
@@ -160,7 +160,7 @@ def parse_pidbytes(mid,msg):
             l.critical(e)
             return False
       except:
-        l.warning("Invalid message")
+        l.error("Invalid message")
         return False
       bytemessage += "\n"
 
@@ -175,7 +175,7 @@ def parse_pidbytes(mid,msg):
           bytemessage += doc["pid_fields"][str(pid)]["ByteDef"][bsequence[i]]
           json_message["DATA"][pid]["bytes_def"][data[i]] = doc["pid_fields"][str(pid)]["ByteDef"][bsequence[i]]
         except:
-          l.warning("Invalid message")
+          l.error("Invalid message")
           return False
         bytemessage += "\n"
 
@@ -211,7 +211,7 @@ def parse_pidbytes(mid,msg):
           bytemessage += doc["pid_fields"][str(pid)]["ByteDef"][bsequence[i]]
           json_message["DATA"][pid]["bytes_def"][data[i]] = doc["pid_fields"][str(pid)]["ByteDef"][bsequence[i]]
         except :
-          l.warning("Rest of message could not be handled")
+          l.error("Rest of message could not be handled")
           del json_message["DATA"][pid]
           return
 
@@ -221,7 +221,7 @@ def parse_pidbytes(mid,msg):
       meaning = doc["pids"][str(pid)]
     else:
       #raise KeyError("Pid %d not encountered in doc object" % pid)
-      l.warning("Bad packet: %s" % msg)
+      l.error("Bad packet: %s" % msg)
       return False
 
 
@@ -362,7 +362,7 @@ def parse_single_repeated_byte_seq(pid,data):
 
   if "..." not in bsequence and pid not in [254,192,448]:
     #raise ValueError("'...' not found in byte sequence for pid %d" % pid)
-    l.warning("'...' not found in byte sequence for pid %d" % pid)
+    l.error("'...' not found in byte sequence for pid %d" % pid)
     return False
 
   # nab1b2b3b4...
@@ -430,8 +430,8 @@ def parse_194(mid,msg):
 
     if code_char & 128: # occurence count included
       if not msg:
-        l.info("Occurrence count was NOT included")
-        l.warning("Invalid message")
+        l.error("Occurrence count was NOT included")
+        l.error("Invalid message")
         return False
       occurrence_count = msg.pop(0)
       occurrence = " "*9 + "- Occurrance count: %d" % occurrence_count
@@ -607,7 +607,7 @@ def canonicalize(line):
   global print_message, checksums, whitelist_print
 
   if not line or len(line) == 0 or line[0] == "," or line[-1] == ",":
-    l.warning("Invalid message: %s" % line)
+    l.error("Invalid message: %s" % line)
     return
 
   if canon_function:
