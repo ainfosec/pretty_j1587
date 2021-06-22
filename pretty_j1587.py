@@ -642,8 +642,8 @@ def pretty_print(msg):
   json_message["MSG"] = msg
 
   if len(msg) > 21:
-    l.warning("Message is too long")
-    return False
+    l.warning("Message is longer than the vehicle-in-motion maximum of 21 bytes")
+
   mid = msg[0]
   if checksums:
     calculated_checksum = calc_checksum(msg[:-1])
