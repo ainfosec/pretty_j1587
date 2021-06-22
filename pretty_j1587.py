@@ -893,3 +893,4 @@ if __name__ == "__main__":
     udpthread.start()
 
   pretty_print_all(message_queue, timeout=timeout)
+  message_queue.close()
