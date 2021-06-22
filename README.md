@@ -14,10 +14,11 @@ Input can be from stdin, sockets or files.
 
 ## Usage
 ```
-usage: pretty_j1587.py [-h] [-c CUSTOMDB] [-d] -f FILENAMES [FILENAMES ...]
-                       [-j CANON] [-l [{critical,error,info,debug,notset}]]
-                       [-n] [-p] [-t T] [-u U] [-v [{0,1,2}]]
-                       [-w [PID [PID ...]]] [-x] [--json] [--format]
+usage: pretty_j1587.py [-h] [-c CUSTOMDB] [-d] [-f [FILENAMES]] [-j CANON]
+                       [-l [{critical,error,info,debug,notset}]] [-n] [-p]
+                       [-t T] [-u U] [--interface [{j1708,j1708_2,plc}]]
+                       [-v [{0,1,2}]] [-w [PID [PID ...]]] [-x] [--json]
+                       [--format]
 
 Program to make sense of logged J1708/J1587 data
 
@@ -27,7 +28,7 @@ optional arguments:
                         The filename of the file that contains the custom
                         database in JSON format
   -d                    Disable default (grepable) output
-  -f FILENAMES [FILENAMES ...], --filenames FILENAMES [FILENAMES ...]
+  -f [FILENAMES], --filenames [FILENAMES]
                         The filename(s) of the file(s) that contain(s) the
                         messages. Use - for stdin
   -j CANON, --canon CANON
@@ -40,6 +41,9 @@ optional arguments:
   -p                    Print packet delimeters
   -t T                  Define a TCP port to use as input
   -u U                  Define a UDP port to use as input
+  --interface [{j1708,j1708_2,plc}]
+                        choose the (TruckDuck) interface to dump from. NB:
+                        also enables --checksums
   -v [{0,1,2}]          Set the verbosity for regular output
   -w [PID [PID ...]], --whitelist [PID [PID ...]]
                         List of PIDs to be parsed, ignoring other messages
@@ -221,7 +225,9 @@ There may be issues when overriding certain *special* PIDs. For instance, settin
 
 ## Installation
 
-There are no python dependencies for `pretty_j1587.py`; you will, however, need copies of the J1587 and J1708 specification PDFs and they need to be converted to .txt files using `pdftotext -layout`
+`pretty_j1587.py` requires python3 as well as configparser and hv-networks as captured in `requirements.txt.`
+
+You will also need copies of the J1587 and J1708 specification PDFs and they need to be converted to .txt files using `pdftotext -layout`
 
 ```bash
 pdftotext -layout J1587_201301.pdf <1587outputfilename>
@@ -253,7 +259,6 @@ This will write packets to TCP port 4545. For UDP, the argument should be "U". F
 
  - Test different versions of pdftotext (Only 3.03 so far!)
  - Add more test cases 
- - Probably want to migrate to python3 at some point
  - Make sure the SIDs are getting parsed correctly
  - Make JSON output handle the different sorts of byte sequences
  - Check on the customdb when working with special PIDs

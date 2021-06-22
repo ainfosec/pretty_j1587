@@ -1,4 +1,5 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python3
+
 import multiprocessing
 import os, sys
 import queue
@@ -9,12 +10,6 @@ import itertools as it
 import re, socket, json, logging
 import canon_functions
 
-# Helper funcs:
-  # j1587.get_sid_mids()
-  # j1587.get_bytecount_from_pid()
-  # j1587.get_document_object()
-# Vars
-  # j1587.dbg
 from hv_networks.J1587Driver import J1708DriverFactory, set_j1708_driver_factory, J1587Driver
 
 messages_parsed_count = 0
@@ -138,7 +133,7 @@ def parse_pidbytes(mid,msg):
     if do_json: json_message["PIDs"].append(pid)
 
     if not msg:
-      l.warning("Incomplete message for PID %d" % pid)
+      l.error("Incomplete message for PID %d" % pid)
       continue
 
     json_message["DATA"][pid]["bytes_def"] = dict()
@@ -165,7 +160,7 @@ def parse_pidbytes(mid,msg):
             l.critical(e)
             return False
       except:
-        l.warning("Invalid message")
+        l.error("Invalid message")
         return False
       bytemessage += "\n"
 
@@ -180,7 +175,7 @@ def parse_pidbytes(mid,msg):
           bytemessage += doc["pid_fields"][str(pid)]["ByteDef"][bsequence[i]]
           json_message["DATA"][pid]["bytes_def"][data[i]] = doc["pid_fields"][str(pid)]["ByteDef"][bsequence[i]]
         except:
-          l.warning("Invalid message")
+          l.error("Invalid message")
           return False
         bytemessage += "\n"
 
@@ -216,7 +211,7 @@ def parse_pidbytes(mid,msg):
           bytemessage += doc["pid_fields"][str(pid)]["ByteDef"][bsequence[i]]
           json_message["DATA"][pid]["bytes_def"][data[i]] = doc["pid_fields"][str(pid)]["ByteDef"][bsequence[i]]
         except :
-          l.warning("Rest of message could not be handled")
+          l.error("Rest of message could not be handled")
           del json_message["DATA"][pid]
           return
 
@@ -226,7 +221,7 @@ def parse_pidbytes(mid,msg):
       meaning = doc["pids"][str(pid)]
     else:
       #raise KeyError("Pid %d not encountered in doc object" % pid)
-      l.warning("Bad packet: %s" % msg)
+      l.error("Bad packet: %s" % msg)
       return False
 
 
@@ -367,7 +362,7 @@ def parse_single_repeated_byte_seq(pid,data):
 
   if "..." not in bsequence and pid not in [254,192,448]:
     #raise ValueError("'...' not found in byte sequence for pid %d" % pid)
-    l.warning("'...' not found in byte sequence for pid %d" % pid)
+    l.error("'...' not found in byte sequence for pid %d" % pid)
     return False
 
   # nab1b2b3b4...
@@ -435,8 +430,8 @@ def parse_194(mid,msg):
 
     if code_char & 128: # occurence count included
       if not msg:
-        l.info("Occurrence count was NOT included")
-        l.warning("Invalid message")
+        l.error("Occurrence count was NOT included")
+        l.error("Invalid message")
         return False
       occurrence_count = msg.pop(0)
       occurrence = " "*9 + "- Occurrance count: %d" % occurrence_count
@@ -612,7 +607,7 @@ def canonicalize(line):
   global print_message, checksums, whitelist_print
 
   if not line or len(line) == 0 or line[0] == "," or line[-1] == ",":
-    l.warning("Invalid message: %s" % line)
+    l.error("Invalid message: %s" % line)
     return
 
   if canon_function:
@@ -632,6 +627,8 @@ def pretty_print_all(message_queue, block=True, timeout=1):  # TODO no timeout (
       pretty_print(msg)
     except queue.Empty:
       break
+    except KeyboardInterrupt:
+      break
   return
 
 
@@ -645,8 +642,8 @@ def pretty_print(msg):
   json_message["MSG"] = msg
 
   if len(msg) > 21:
-    l.warning("Message is too long")
-    return False
+    l.warning("Message is longer than the vehicle-in-motion maximum of 21 bytes")
+
   mid = msg[0]
   if checksums:
     calculated_checksum = calc_checksum(msg[:-1])
@@ -768,6 +765,26 @@ class UdpLineReceiver(threading.Thread):
           if msg:
             self.out_queue.put(canonicalize(msg))
 
+
+class TruckDuckUdpReceiver(threading.Thread):
+  def __init__(self, interface_name, out_queue):
+    super().__init__()
+    self.out_queue = out_queue
+    self.daemon = True
+
+    self.port = 6970
+    if interface_name == 'j1708_2' or interface_name == 'plc':
+      self.port = 6972
+    self.sock = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
+    self.sock.bind(('localhost', self.port))
+
+  def run(self):
+    while True:
+      data = self.sock.recv(256)
+      if data:
+        self.out_queue.put(data)
+
+
 class FilesReceiver(threading.Thread):
   def __init__(self, filenames, out_queue):
     super().__init__()
@@ -796,13 +813,16 @@ if __name__ == "__main__":
   parser = ap.ArgumentParser(description="Program to make sense of logged J1708/J1587 data")
   parser.add_argument("-c","--customdb",help="The filename of the file that contains the custom database in JSON format")
   parser.add_argument("-d",action="store_false",default=True,help="Disable default (grepable) output")
-  parser.add_argument("-f","--filenames",help="The filename(s) of the file(s) that contain(s) the messages. Use - for stdin",nargs="+",required=True)
+  parser.add_argument("-f","--filenames",help="The filename(s) of the file(s) that contain(s) the messages. Use - for stdin",nargs="?")
   parser.add_argument("-j","--canon",help="Use this function to reformat each line of input for parsing")
   parser.add_argument("-l",nargs="?",default="notset",choices=["critical","error","info","debug","notset"],help="Set the minimum level log level")
   parser.add_argument("-n","--nocache",action="store_true",help="Parse the J-specs every time command is run and generate a new cache file")
   parser.add_argument("-p",action="store_true",default=False,help="Print packet delimeters")
   parser.add_argument("-t",help="Define a TCP port to use as input")
   parser.add_argument("-u",help="Define a UDP port to use as input")
+  parser.add_argument('--interface', default=None, const=None,
+                      nargs='?', choices=['j1708', 'j1708_2', 'plc'],
+                      help='choose the (TruckDuck) interface to dump from. NB: also enables --checksums')
   parser.add_argument("-v",nargs="?",default=0,type=int,help="Set the verbosity for regular output",choices=[0,1,2])
   parser.add_argument("-w","--whitelist",nargs="*",metavar="PID",type=int,help="List of PIDs to be parsed, ignoring other messages")
   parser.add_argument("-x","--checksums",action="store_true",help="Tells the parser that the messages contain checksums")
@@ -852,12 +872,19 @@ if __name__ == "__main__":
 
   message_queue = PyHvNetworksTransportReassemblerQueue(suppress_fragments=True)
 
+  timeout = None  # use 'follow' behaviour: wait forever (end with Ctrl-C) for all inputs except a regular file
   # Iterate through the provided files
   if args.filenames:
+    if '-' not in args.filenames:
+      timeout = None
     files_thread = FilesReceiver(args.filenames, message_queue)
     files_thread.start()
 
   # Setup udp and or tcp sockets for listening
+  if args.interface:
+    checksums = True
+    truck_duck_thread = TruckDuckUdpReceiver(args.interface, message_queue)
+    truck_duck_thread.start()
   if args.t:
     tcpthread = TcpLineReceiver(args.t, message_queue)
     tcpthread.start()
@@ -865,4 +892,5 @@ if __name__ == "__main__":
     udpthread = UdpLineReceiver(args.u, message_queue)
     udpthread.start()
 
-  pretty_print_all(message_queue)
+  pretty_print_all(message_queue, timeout=timeout)
+  message_queue.close()
