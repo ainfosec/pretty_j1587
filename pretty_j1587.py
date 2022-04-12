@@ -831,7 +831,10 @@ if __name__ == "__main__":
   args = parser.parse_args()
 
   # Do all the important stuff
-  doc = j1587.get_document_object(customdb=args.customdb,nocache=args.nocache)
+  try:
+    doc = j1587.get_document_object(customdb=args.customdb,nocache=args.nocache)
+  except ValueError:
+    doc = j1587.get_document_object(customdb=args.customdb,nocache=True)
 
   # Setup nice logging
   levels = { "critical":50,"error":40,"warning":30,"info":20,"debug":10,"notset":0}
