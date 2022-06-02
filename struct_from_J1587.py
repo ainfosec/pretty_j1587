@@ -22,6 +22,7 @@
 import re,os,pickle,itertools,json
 import pprint as pp, logging as lg
 import configparser
+import platformdirs
 
 orig_work_dir = os.getcwd()
 script_dir = os.path.dirname(__file__)
@@ -35,10 +36,10 @@ filepath_layout_1587 = config.get("Filepaths", "1587_filepath", raw=False)
 filepath_layout_1708 = config.get("Filepaths", "1708_filepath", raw=False)
 
 # Lines with layout
-fhl = open(filepath_layout_1587,"r")
+fhl = open(filepath_layout_1587,"r", encoding='utf-8')
 linesl = fhl.readlines()
 # 1708 lines with layout
-fh1708l = open(filepath_layout_1708,"r")
+fh1708l = open(filepath_layout_1708,"r", encoding='utf-8')
 lines1708 = fh1708l.readlines()
 os.chdir(orig_work_dir)
 
@@ -346,12 +347,12 @@ def get_document_object(customdb="",nocache=False):
 
   global linesl,lines1708
 
-  tmpfile = "/tmp/J1587_1708_2497_doc_obj"
+  cache_dir = platformdirs.user_cache_dir('pretty_j1587', 'ais')
+  pickled_cache_file = os.path.join(cache_dir, "J1587_1708_2497_doc_obj")
   doc = {}
 
-
-  # Use a cache in tmp dir
-  if not os.path.exists(tmpfile) or nocache:
+  # Use a cache in cache dir
+  if not os.path.exists(pickled_cache_file) or nocache:
     doc["mids"]          = combine_mid_ranges(linesl,lines1708)
     doc["fmis"]          = get_fmis(linesl)
     doc["pids"]          = extend_dict(clean_ids(get_pids(linesl)))
@@ -359,8 +360,9 @@ def get_document_object(customdb="",nocache=False):
     doc["sids_for_mids"] = get_sids_for_mids(linesl)
     doc["pid_fields"]    = get_pid_fields(linesl)
 
-    # Write the file to /tmp
-    fh = open(tmpfile,"wb")
+    # Write the file
+    os.makedirs(cache_dir, exist_ok=True)
+    fh = open(pickled_cache_file,"wb")
     pickle.dump(doc,fh,pickle.HIGHEST_PROTOCOL)
     fh.close()
 
@@ -368,7 +370,7 @@ def get_document_object(customdb="",nocache=False):
     # Load the cached file
     # Reboot or cache file deletion will require
     #   reparsing the spec documents
-    fh = open(tmpfile,"rb")
+    fh = open(pickled_cache_file,"rb")
     doc = pickle.load(fh)
     fh.close()
 
