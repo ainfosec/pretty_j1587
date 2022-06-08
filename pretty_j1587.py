@@ -9,6 +9,7 @@ import struct_from_J1587 as j1587
 import itertools as it
 import re, socket, json, logging
 import canon_functions
+from J1708Driver import J1708Driver
 
 from hv_networks.J1587Driver import J1708DriverFactory, set_j1708_driver_factory, J1587Driver
 
@@ -537,7 +538,7 @@ class FeederJ1708Driver:
   def read_message(self, checksum=False, timeout=0.5):
     if self.stopped.is_set():
       return None
-
+    assert checksum  # J1587Driver always calls with checksum True
     msg = None
     try:
       msg = self.message_queue.get(block=True, timeout=timeout)
@@ -556,7 +557,9 @@ class FeederJ1708Driver:
     self.close()
 
   def put(self, obj):
-    self.message_queue.put(obj)
+    global checksums
+    msg = J1708Driver.prepare_message(obj, checksums)
+    self.message_queue.put(msg)
 
 
 class FeederJ1708Factory(J1708DriverFactory):
@@ -591,7 +594,11 @@ class PyHvNetworksTransportReassemblerQueue:
     self.j1708_driver.put(message)
 
   def get(self, block=True, timeout=None):
-    return self.j1587_driver.read_message(block, timeout)
+    global checksums
+    message = self.j1587_driver.read_message(block, timeout)
+    if checksums:  # add checksum if needed
+        message = J1708Driver.prepare_message(message, has_checksum=False)
+    return message
 
   def close(self):
     self.fake_j1708_factory.clear()

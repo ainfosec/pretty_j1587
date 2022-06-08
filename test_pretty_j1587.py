@@ -13,6 +13,9 @@ from contextlib import contextmanager
 from io import StringIO
 import sys, json, logging
 
+from J1708Driver import J1708Driver
+
+
 @contextmanager
 def captured_output():
     # This is pretty slick, I didn't come up with it myself
@@ -93,12 +96,13 @@ class J1587TestClass(ut.TestCase):
     parser.pdelim = False
     parser.pregular = False
     parser.checksums = True
-    self.fill_queue(["0x89,0x30,0x33,0x2d"])
+    # When checksums == True the messages queued need to have valid checksums (e7 here)
+    self.fill_queue(["0x89,0x30,0x33,0x2d,0xe7"])
     with captured_output() as (sout,serr):
       self.pretty_print_all()
     jmsg = json.loads(sout.getvalue().strip())
     self.assertTrue("CLC_CHECKSUM" in jmsg)
-    self.assertTrue(jmsg["CLC_CHECKSUM"] == 20)
+    self.assertTrue(jmsg["CLC_CHECKSUM"] == 231)
   def test_special_pid_var_len(self):
     self.fill_queue(["87,d3,02,c2,c1,d3,01,c2,c0,bf,cf,df"])
     with captured_output() as (sout,serr):
