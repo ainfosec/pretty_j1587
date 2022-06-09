@@ -14,16 +14,35 @@ Input can be from stdin, sockets or files.
 
 ## Usage
 ```
-usage: pretty_j1587.py [-h] [-c CUSTOMDB] [-d] [-f [FILENAMES]] [-j CANON]
+usage: pretty_j1587.py [-h]
+                       [--j1708-interface [{truckduck_1,j1708,truckduck_2,j1708_2,truckduck_bbplc,plc,RP1210}]]
+                       [--truckduck-host [TRUCKDUCK_HOST]]
+                       [--rp1210-dll [RP1210_DLL]]
+                       [--rp1210-device [RP1210_DEVICE]] [--list-rp1210]
+                       [-c CUSTOMDB] [-d] [-f [FILENAMES]] [-j CANON]
                        [-l [{critical,error,info,debug,notset}]] [-n] [-p]
-                       [-t T] [-u U] [--interface [{j1708,j1708_2,plc}]]
-                       [-v [{0,1,2}]] [-w [PID [PID ...]]] [-x] [--json]
-                       [--format]
+                       [-t T] [-u U] [-v [{0,1,2}]] [-w [PID [PID ...]]] [-x]
+                       [--json] [--format]
 
 Program to make sense of logged J1708/J1587 data
 
 optional arguments:
   -h, --help            show this help message and exit
+  --j1708-interface [{truckduck_1,j1708,truckduck_2,j1708_2,truckduck_bbplc,plc,RP1210}]
+                        choose the interface to send and receive J1708
+                        messages. Truckduck interfaces use localhost by
+                        default. RP1210 J1708 interface is available on 32bit
+                        python running on windows when VDA drivers are
+                        installed and configured.
+  --truckduck-host [TRUCKDUCK_HOST]
+                        specify the network hostname of the target truckduck.
+                        For non-localhost you will need to start port
+                        redirects on the target host.
+  --rp1210-dll [RP1210_DLL]
+                        the RP1210 dll name to use. uses first DLL if omitted.
+  --rp1210-device [RP1210_DEVICE]
+                        the RP1210 device id to use. Default is 1.
+  --list-rp1210         list the RP1210 DLLs and Devices.
   -c CUSTOMDB, --customdb CUSTOMDB
                         The filename of the file that contains the custom
                         database in JSON format
@@ -41,9 +60,6 @@ optional arguments:
   -p                    Print packet delimeters
   -t T                  Define a TCP port to use as input
   -u U                  Define a UDP port to use as input
-  --interface [{j1708,j1708_2,plc}]
-                        choose the (TruckDuck) interface to dump from. NB:
-                        also enables --checksums
   -v [{0,1,2}]          Set the verbosity for regular output
   -w [PID [PID ...]], --whitelist [PID [PID ...]]
                         List of PIDs to be parsed, ignoring other messages
