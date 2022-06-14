@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
 
 import multiprocessing
-import os, sys
+import sys
 import queue
 import threading
 
 import struct_from_J1587 as j1587
-import itertools as it
 import re, socket, json, logging
 import canon_functions
 from J1708Driver import J1708Driver
 
-from hv_networks.J1587Driver import J1708DriverFactory, set_j1708_driver_factory, J1587Driver
+from hv_networks.J1587Driver import J1708DriverFactory, set_j1708_driver_factory, J1587Driver, get_j1708_driver_factory
 
 messages_parsed_count = 0
 json_message = dict()
@@ -593,7 +592,7 @@ class PyHvNetworksTransportReassemblerQueue:
   def put(self, message):
     self.j1708_driver.put(message)
 
-  def get(self, block=True, timeout=None):
+  def get(self, block=True, timeout=0.1):
     global checksums
     message = self.j1587_driver.read_message(block, timeout)
     if checksums:  # add checksum if needed
@@ -773,21 +772,17 @@ class UdpLineReceiver(threading.Thread):
             self.out_queue.put(canonicalize(msg))
 
 
-class TruckDuckUdpReceiver(threading.Thread):
-  def __init__(self, interface_name, out_queue):
+class PyHvNetworksJ1708Receiver(threading.Thread):
+  def __init__(self, j1708_driver, checksums, out_queue):
     super().__init__()
     self.out_queue = out_queue
     self.daemon = True
-
-    self.port = 6970
-    if interface_name == 'j1708_2' or interface_name == 'plc':
-      self.port = 6972
-    self.sock = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
-    self.sock.bind(('localhost', self.port))
+    self.j1708_driver = j1708_driver
+    self.checksums = checksums
 
   def run(self):
     while True:
-      data = self.sock.recv(256)
+      data = self.j1708_driver.read_message(checksum=self.checksums)
       if data:
         self.out_queue.put(data)
 
@@ -818,6 +813,7 @@ if __name__ == "__main__":
   import argparse as ap, threading as th
 
   parser = ap.ArgumentParser(description="Program to make sense of logged J1708/J1587 data")
+  J1708DriverFactory.argparse(parser)
   parser.add_argument("-c","--customdb",help="The filename of the file that contains the custom database in JSON format")
   parser.add_argument("-d",action="store_false",default=True,help="Disable default (grepable) output")
   parser.add_argument("-f","--filenames",help="The filename(s) of the file(s) that contain(s) the messages. Use - for stdin",nargs="?")
@@ -827,15 +823,13 @@ if __name__ == "__main__":
   parser.add_argument("-p",action="store_true",default=False,help="Print packet delimeters")
   parser.add_argument("-t",help="Define a TCP port to use as input")
   parser.add_argument("-u",help="Define a UDP port to use as input")
-  parser.add_argument('--interface', default=None, const=None,
-                      nargs='?', choices=['j1708', 'j1708_2', 'plc'],
-                      help='choose the (TruckDuck) interface to dump from. NB: also enables --checksums')
   parser.add_argument("-v",nargs="?",default=0,type=int,help="Set the verbosity for regular output",choices=[0,1,2])
   parser.add_argument("-w","--whitelist",nargs="*",metavar="PID",type=int,help="List of PIDs to be parsed, ignoring other messages")
   parser.add_argument("-x","--checksums",action="store_true",help="Tells the parser that the messages contain checksums")
   parser.add_argument("--json",dest="do_json",default=False,action="store_true",help="Print JSON output as opposed to the default")
   parser.add_argument("--format",action="store_true",default=False,help="Pretty print the JSON output")
   args = parser.parse_args()
+  get_j1708_driver_factory().parse_args(args)
 
   # Do all the important stuff
   try:
@@ -891,9 +885,12 @@ if __name__ == "__main__":
     files_thread.start()
 
   # Setup udp and or tcp sockets for listening
-  if args.interface:
-    checksums = True
-    truck_duck_thread = TruckDuckUdpReceiver(args.interface, message_queue)
+  if args.j1708_interface:
+    # don't use the injectable get_j1708_driver_factory() because that is used to create a transport reassembler
+    factory = J1708DriverFactory()
+    factory.parse_args(args)
+    j1708_driver = factory.make()
+    truck_duck_thread = PyHvNetworksJ1708Receiver(j1708_driver, args.checksums, message_queue)
     truck_duck_thread.start()
   if args.t:
     tcpthread = TcpLineReceiver(args.t, message_queue)
